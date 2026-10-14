@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Market Pulse</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+    --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,0.10); --wash: rgba(11,11,11,0.05);
+    --s1: #2a78d6; --s2: #eb6834;
+    --good: #0ca30c; --warn: #fab219; --crit: #d03b3b; --good-text: #006300;
+    --flash-up: rgba(12,163,12,0.18); --flash-down: rgba(208,59,59,0.18);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7;
+      --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10); --wash: rgba(255,255,255,0.06);
+      --s1: #3987e5; --s2: #d95926; --good-text: #0ca30c;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7;
+    --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10); --wash: rgba(255,255,255,0.06);
+    --s1: #3987e5; --s2: #d95926; --good-text: #0ca30c;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--ink);
+         font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 20px 16px 48px; }
+  header { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  h1 { font-size: 20px; margin: 0; font-weight: 600; }
+  .sub { color: var(--ink-2); font-size: 13px; margin-top: 2px; }
+  .pills { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .pill { font-size: 13px; padding: 4px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--ink-2); white-space: nowrap; }
+  .pill b { color: var(--ink); font-weight: 600; }
+  .g { margin-right: 5px; }
+  .ok { color: var(--good); } .bad { color: var(--crit); } .warn { color: var(--warn); }
+  button { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 5px 12px; cursor: pointer; }
+  button:hover { background: var(--wash); }
+  button:focus-visible { outline: 2px solid var(--s1); outline-offset: 2px; }
+  button[aria-pressed="true"] { border-color: var(--crit); font-weight: 600; }
+
+  .banner { display: none; margin-bottom: 12px; padding: 10px 14px; border: 1px solid var(--crit); border-radius: 8px; background: var(--surface); }
+  .banner.show { display: block; }
+  .banner .g { color: var(--crit); }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; min-width: 0; }
+  .card h2 { font-size: 13px; font-weight: 600; margin: 0 0 8px; color: var(--ink-2); }
+  .layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); gap: 12px; align-items: start; }
+  @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+
+  table { border-collapse: collapse; width: 100%; }
+  th { text-align: left; font-weight: 600; color: var(--ink-2); font-size: 12px; padding: 4px 8px; border-bottom: 1px solid var(--axis); }
+  td { padding: 8px; border-bottom: 1px solid var(--grid); vertical-align: middle; }
+  tr:last-child td { border-bottom: 0; }
+  th.n, td.n { text-align: right; font-variant-numeric: tabular-nums; }
+  .sym { font-weight: 600; } .co { color: var(--ink-2); font-size: 12px; }
+  .price { font-size: 16px; font-weight: 600; }
+  .chg { font-size: 13px; color: var(--ink-2); white-space: nowrap; }
+  .private td { color: var(--muted); }
+  table.stale tbody { opacity: 0.55; }
+  @keyframes up { from { background: var(--flash-up); } to { background: transparent; } }
+  @keyframes down { from { background: var(--flash-down); } to { background: transparent; } }
+  .tick-up .price { animation: up 1s ease-out; } .tick-down .price { animation: down 1s ease-out; }
+  @media (prefers-reduced-motion: reduce) { .tick-up .price, .tick-down .price { animation: none; } }
+  svg.spark { width: 110px; height: 28px; display: block; }
+  svg.spark polyline { fill: none; stroke: var(--s1); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+  @media (max-width: 560px) { .trend { display: none; } }
+
+  .stat { display: flex; justify-content: space-between; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--grid); font-size: 13px; }
+  .stat:last-of-type { border-bottom: 0; }
+  .stat span:first-child { color: var(--ink-2); }
+  .stat b { font-variant-numeric: tabular-nums; }
+  .reasons { margin: 8px 0 0; padding-left: 18px; color: var(--ink-2); font-size: 12px; }
+
+  .lab { margin-top: 24px; }
+  .lab-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+  .lab h2.big { font-size: 16px; margin: 0; color: var(--ink); }
+  .lab p.intro { color: var(--ink-2); margin: 0 0 12px; max-width: 70ch; }
+  .faults { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+  .fault h3 { font-size: 14px; margin: 0; }
+  .fault .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+  .fault p { margin: 6px 0; color: var(--ink-2); font-size: 13px; }
+  .badge { font-size: 12px; white-space: nowrap; color: var(--ink-2); }
+  details { margin-top: 8px; font-size: 13px; }
+  summary { cursor: pointer; color: var(--ink-2); }
+  details ul { margin: 6px 0 6px 18px; padding: 0; }
+  code, pre { font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  pre { background: var(--wash); border-radius: 6px; padding: 6px 8px; margin: 4px 0; overflow-x: auto; white-space: pre-wrap; word-break: break-all; }
+  .lesson { border-left: 3px solid var(--s2); padding-left: 8px; margin-top: 8px; color: var(--ink-2); }
+  footer { margin-top: 24px; color: var(--muted); font-size: 12px; }
+  footer a { color: var(--ink-2); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Market Pulse</h1>
+      <div class="sub" id="sub">Prices refresh every {{ interval|int }} s</div>
+    </div>
+    <div class="pills">
+      <span class="pill" id="healthPill" role="status"><span class="g">…</span>Health: checking</span>
+      <span class="pill" id="agePill">Last update: –</span>
+      <button id="theme" aria-label="Toggle colour theme">Theme</button>
+    </div>
+  </header>
+
+  <div class="banner" id="banner" role="alert"><span class="g">✕</span><span id="bannerText"></span></div>
+
+  <div class="layout">
+    <section class="card">
+      <h2>Top 10 companies</h2>
+      <table id="stocks" aria-label="Stock prices">
+        <thead><tr><th>Company</th><th class="n">Price (USD)</th><th class="n">Change</th><th class="trend">Trend</th></tr></thead>
+        <tbody id="rows"><tr><td colspan="4" class="co">Loading…</td></tr></tbody>
+      </table>
+    </section>
+
+    <aside class="card">
+      <h2>System (what an operator watches)</h2>
+      <div id="system"><div class="co">Loading…</div></div>
+      <ul class="reasons" id="reasons" hidden></ul>
+    </aside>
+  </div>
+
+  <section class="lab" id="lab" hidden>
+    <div class="lab-head">
+      <h2 class="big">Chaos lab: break it on purpose</h2>
+      <button id="resetAll">Reset all faults</button>
+    </div>
+    <p class="intro">Switch a fault on, watch what changes above, then use the "How to debug" commands in a terminal to find the cause. Only for practice: never enable this on a public server.</p>
+    <div class="faults" id="faults"></div>
+  </section>
+
+  <footer>
+    <a href="/health">/health</a> · <a href="/api/stocks">/api/stocks</a> · <a href="/api/system">/api/system</a> · <a href="/metrics">/metrics</a>
+    · <span id="source"></span>
+  </footer>
+</div>
+
+<script>
+(() => {
+  const POLL_MS = {{ (interval * 1000)|int }};
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const fmt = n => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  async function getJSON(url, timeoutMs) {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), timeoutMs);
+    try {
+      const r = await fetch(url, { cache: 'no-store', signal: ctl.signal });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return await r.json();
+    } finally { clearTimeout(timer); }
+  }
+  const errText = e => e.name === 'AbortError' ? 'request timed out' : e.message === 'Failed to fetch' ? 'server unreachable' : e.message;
+
+  // ---------- prices ----------
+  let prev = {}, lastData = null, fetchedAt = 0, stocksError = null, staleAfter = 10;
+
+  function spark(h) {
+    if (!h || h.length < 2) return '';
+    const lo = Math.min(...h), hi = Math.max(...h), span = hi - lo || 1;
+    const pts = h.map((v, i) => `${(i / (h.length - 1) * 100).toFixed(1)},${(26 - (v - lo) / span * 24).toFixed(1)}`).join(' ');
+    return `<svg class="spark" viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true"><polyline points="${pts}"/></svg>`;
+  }
+
+  function renderStocks(d) {
+    $('rows').innerHTML = d.quotes.map(q => {
+      const co = `<td><div class="sym">${esc(q.symbol)}</div><div class="co">${esc(q.name)}</div></td>`;
+      if (!q.public) return `<tr class="private">${co}<td colspan="3">Private company: no public share price</td></tr>`;
+      if (q.price == null) return `<tr>${co}<td class="n" colspan="3">No data yet</td></tr>`;
+      const dir = q.change > 0 ? 'up' : q.change < 0 ? 'down' : 'flat';
+      const glyph = { up: '<span class="ok g">▲</span>', down: '<span class="bad g">▼</span>', flat: '<span class="g">–</span>' }[dir];
+      const p = prev[q.symbol];
+      const tick = p != null && p !== q.price ? (q.price > p ? 'tick-up' : 'tick-down') : '';
+      prev[q.symbol] = q.price;
+      const sign = q.change > 0 ? '+' : '';
+      return `<tr class="${tick}">${co}<td class="n price">${fmt(q.price)}</td>
+        <td class="n chg">${glyph}${sign}${fmt(q.change)} (${sign}${q.change_pct.toFixed(2)}%)</td>
+        <td class="trend">${spark(q.history)}</td></tr>`;
+    }).join('');
+    $('source').textContent = 'data source: ' + d.source + (d.source === 'simulated' ? ' (not real prices)' : '');
+  }
+
+  function renderAge() {
+    const pill = $('agePill');
+    if (!lastData) { pill.textContent = 'Last update: –'; return; }
+    const age = (lastData.age ?? 0) + (Date.now() - fetchedAt) / 1000;
+    const old = age > staleAfter;
+    pill.innerHTML = `<span class="g ${old ? 'warn' : 'ok'}">${old ? '▲' : '●'}</span>Last update: <b>${age.toFixed(0)} s ago</b>`;
+    $('stocks').classList.toggle('stale', old || !!stocksError);
+  }
+
+  function showBanner(msg) {
+    $('banner').classList.toggle('show', !!msg);
+    if (msg) $('bannerText').textContent = msg;
+  }
+
+  async function pollStocks() {
+    try {
+      const d = await getJSON('/api/stocks', 3000);
+      lastData = d; fetchedAt = Date.now(); stocksError = null;
+      renderStocks(d); showBanner('');
+    } catch (e) {
+      stocksError = errText(e);
+      showBanner(`Can't load prices (${stocksError}). Showing the last known data.`);
+    }
+    renderAge();
+    setTimeout(pollStocks, POLL_MS);
+  }
+
+  // ---------- health + system ----------
+  async function pollHealth() {
+    const pill = $('healthPill');
+    try {
+      const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 2500);
+      const r = await fetch('/health', { cache: 'no-store', signal: ctl.signal }); clearTimeout(t);
+      const text = await r.text();
+      pill.innerHTML = r.ok ? '<span class="g ok">✓</span>Health: <b>OK</b>'
+                            : `<span class="g bad">✕</span>Health: <b>HTTP ${r.status}</b>`;
+      pill.title = text;
+    } catch (e) {
+      pill.innerHTML = `<span class="g bad">✕</span>Health: <b>${esc(errText(e))}</b>`;
+      pill.title = '';
+    }
+  }
+
+  function stat(label, value, glyph = '') { return `<div class="stat"><span>${label}</span><b>${glyph}${value}</b></div>`; }
+  const g = (cls, ch) => `<span class="g ${cls}">${ch}</span>`;
+
+  async function pollSystem() {
+    try {
+      const s = await getJSON('/api/system', 2500);
+      staleAfter = s.data.stale_after;
+      const memHigh = s.process.rss_mb > s.process.mem_limit_mb;
+      const cpuHigh = s.process.cpu > 80;
+      const rq = s.requests;
+      $('system').innerHTML =
+        stat('CPU', s.process.cpu.toFixed(0) + ' %', cpuHigh ? g('warn', '▲') : '') +
+        stat('Memory', `${s.process.rss_mb.toFixed(0)} MB / ${s.process.mem_limit_mb.toFixed(0)} MB`, memHigh ? g('bad', '✕') : '') +
+        stat('Requests (60 s)', rq.last_60s) +
+        stat('5xx errors (60 s)', rq.errors_60s, rq.errors_60s ? g('bad', '✕') : '') +
+        stat('Avg latency', rq.avg_ms.toFixed(0) + ' ms', rq.avg_ms > 1000 ? g('warn', '▲') : '') +
+        stat('Slowest (60 s)', rq.max_ms.toFixed(0) + ' ms') +
+        stat('Price refresh failures', s.data.failures_total, s.data.failures_total ? g('warn', '▲') : '');
+      const ul = $('reasons');
+      ul.hidden = s.health.ok && !s.data.last_error;
+      ul.innerHTML = (s.health.ok ? [] : s.health.reasons.map(r => `<li><b>Unhealthy:</b> ${esc(r)}</li>`))
+        .concat(s.data.last_error ? [`<li>Last provider error: ${esc(s.data.last_error)}</li>`] : []).join('');
+      active = s.chaos.active; syncChaos();
+    } catch (e) {
+      $('system').innerHTML = `<div class="co"><span class="g bad">✕</span>System info unavailable (${esc(errText(e))})</div>`;
+    }
+  }
+
+  // ---------- chaos lab ----------
+  let defs = [], active = {}, crashArmed = false;
+
+  function buildLab(list) {
+    defs = list;
+    $('faults').innerHTML = defs.map(f => `
+      <article class="card fault" data-id="${f.id}">
+        <div class="top"><h3>${esc(f.title)}</h3><span class="badge" data-badge></span></div>
+        <p>${esc(f.what)}</p>
+        <button data-btn aria-pressed="false"></button>
+        <details><summary>What you'll see &amp; how to debug</summary>
+          <strong>Symptoms</strong><ul>${f.symptoms.map(s => `<li>${esc(s)}</li>`).join('')}</ul>
+          <strong>Try in a terminal</strong>${f.debug.map(c => `<pre>${esc(c)}</pre>`).join('')}
+          <div class="lesson">${esc(f.lesson)}</div>
+        </details>
+      </article>`).join('');
+    $('lab').hidden = false;
+    syncChaos();
+  }
+
+  function syncChaos() {
+    for (const f of defs) {
+      const card = document.querySelector(`.fault[data-id="${f.id}"]`); if (!card) continue;
+      const on = !!active[f.id], btn = card.querySelector('[data-btn]'), badge = card.querySelector('[data-badge]');
+      if (f.kind === 'oneshot') {
+        btn.textContent = crashArmed ? 'Click again to confirm' : 'Crash the process';
+        badge.textContent = '';
+      } else {
+        btn.textContent = on ? 'Turn off' : 'Turn on';
+        btn.setAttribute('aria-pressed', on);
+        badge.innerHTML = on ? '<span class="g bad">✕</span><b>ACTIVE</b>' : '<span class="g ok">●</span>off';
+      }
+    }
+  }
+
+  async function post(url, body) {
+    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+    return r.json();
+  }
+
+  $('faults').addEventListener('click', async e => {
+    const btn = e.target.closest('[data-btn]'); if (!btn) return;
+    const id = btn.closest('.fault').dataset.id;
+    if (id === 'crash') {
+      if (!crashArmed) { crashArmed = true; syncChaos(); setTimeout(() => { crashArmed = false; syncChaos(); }, 3000); return; }
+      crashArmed = false; syncChaos(); await post('/api/chaos', { fault: 'crash' }); return;
+    }
+    const res = await post('/api/chaos', { fault: id, enabled: !active[id] });
+    if (res.active) { active = res.active; syncChaos(); }
+  });
+  $('resetAll').onclick = async () => { const r = await post('/api/chaos/reset'); if (r.active) { active = r.active; syncChaos(); } };
+
+  async function initLab() {
+    try { const r = await getJSON('/api/chaos', 3000); active = r.active; buildLab(r.faults); } catch (e) { /* lab disabled */ }
+  }
+
+  // ---------- theme ----------
+  $('theme').onclick = () => {
+    const root = document.documentElement;
+    const dark = root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+    root.dataset.theme = dark ? 'light' : 'dark';
+  };
+
+  // ---------- start ----------
+  pollStocks(); pollHealth(); pollSystem(); initLab();
+  setInterval(pollHealth, POLL_MS);
+  setInterval(pollSystem, POLL_MS);
+  setInterval(renderAge, 1000);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+services:
+  app:
+    # Locally: built from the Dockerfile. On the server: set IMAGE to the pushed image.
+    image: ${IMAGE:-market-pulse:local}
+    build: .
+    restart: unless-stopped
+    environment:
+      - DATA_SOURCE=${DATA_SOURCE:-simulated}      # simulated | finnhub
+      - FINNHUB_API_KEY=${FINNHUB_API_KEY:-}       # only needed for DATA_SOURCE=finnhub
+      - CHAOS_ENABLED=${CHAOS_ENABLED:-1}          # set 0 on any public server
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    expose:
+      - "5000"          # reachable by nginx on the compose network only
+    networks: [web]
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"         # the only port published to the host
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - app
+    networks: [web]
+
+networks:
+  web:

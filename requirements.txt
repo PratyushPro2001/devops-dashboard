@@ -1,0 +1,3 @@
+Flask>=3.0,<4
+psutil>=5.9
+gunicorn>=22.0
